@@ -1,0 +1,74 @@
+ANT_ROLL - read_raw_location 시작
+2025-01-07 16:39:11,173 - DEBUG - - 읽은 raw value: 1071)
+2025-01-07 16:39:11,174 - DEBUG - ANT_ROLL read_speed 파라미터:
+2025-01-07 16:39:11,174 - DEBUG - - address (start): 9
+2025-01-07 16:39:11,175 - DEBUG - - length: 3
+2025-01-07 16:39:11,189 - DEBUG - ANT_ROLL 읽은 speed: 0 (hex: 0x0)
+ANT_HEIGHT - read_raw_location 시작
+2025-01-07 16:39:11,205 - DEBUG - - 읽은 raw value: 16888033)
+2025-01-07 16:39:11,206 - DEBUG - ANT_HEIGHT read_speed 파라미터:
+2025-01-07 16:39:11,206 - DEBUG - - address (start): 8
+2025-01-07 16:39:11,206 - DEBUG - - length: 3
+2025-01-07 16:39:11,222 - DEBUG - ANT_HEIGHT 읽은 speed: 30000 (hex: 0x7530)
+EUT_ROLL - read_raw_location 시작
+2025-01-07 16:39:11,246 - DEBUG - - 읽은 raw value: 7200)
+TT_ROLL - read_raw_location 시작
+2025-01-07 16:39:11,266 - DEBUG - - 읽은 raw value: 44760)
+2025-01-07 16:39:11,266 - DEBUG - TT_ROLL read_speed 파라미터:
+2025-01-07 16:39:11,266 - DEBUG - - address (start): 9
+2025-01-07 16:39:11,268 - DEBUG - - length: 3
+2025-01-07 16:39:11,283 - DEBUG - TT_ROLL 읽은 speed: 3000 (hex: 0xbb8)
+
+현재 각 포지셔너의 위치와 속도:
+ANT_ROLL - read_raw_location 시작
+2025-01-07 16:39:11,301 - DEBUG - - 읽은 raw value: 1071)
+2025-01-07 16:39:11,302 - DEBUG - ANT_ROLL read_speed 파라미터:
+2025-01-07 16:39:11,302 - DEBUG - - address (start): 9
+2025-01-07 16:39:11,302 - DEBUG - - length: 3
+2025-01-07 16:39:11,317 - DEBUG - ANT_ROLL 읽은 speed: 0 (hex: 0x0)
+ANT_HEIGHT - read_raw_location 시작
+2025-01-07 16:39:11,334 - DEBUG - - 읽은 raw value: 16888033)
+2025-01-07 16:39:11,334 - DEBUG - ANT_HEIGHT read_speed 파라미터:
+2025-01-07 16:39:11,335 - DEBUG - - address (start): 8
+2025-01-07 16:39:11,335 - DEBUG - - length: 3
+2025-01-07 16:39:11,349 - DEBUG - ANT_HEIGHT 읽은 speed: 30000 (hex: 0x7530)
+EUT_ROLL - read_raw_location 시작
+2025-01-07 16:39:11,374 - DEBUG - - 읽은 raw value: 7200)
+TT_ROLL - read_raw_location 시작
+2025-01-07 16:39:11,395 - DEBUG - - 읽은 raw value: 44760)
+2025-01-07 16:39:11,395 - DEBUG - TT_ROLL read_speed 파라미터:
+2025-01-07 16:39:11,395 - DEBUG - - address (start): 9
+2025-01-07 16:39:11,396 - DEBUG - - length: 3
+2025-01-07 16:39:11,410 - DEBUG - TT_ROLL 읽은 speed: 3000 (hex: 0xbb8)
+안테나 높이: 1884.83 mm (속도: 30000)
+안테나 회전: 1.07° (속도: 0)
+EUT 회전: 90.00° (속도: 고정)
+턴테이블: 120.00° (속도: 3000)
+
+캘리브레이션을 진행하시겠습니까? (y/n): n
+
+초기화 완료. 시스템 사용 준비가 되었습니다.
+
+측정 위치로 이동하시겠습니까? (y/n): y
+
+각 포지셔너의 허용 범위:
+안테나 높이: 1520 ~ 1900 mm
+안테나 회전: 0 ~ 180°
+EUT 회전: -360 ~ 360°
+턴테이블: 0 ~ 360°
+
+안테나 높이 목표 위치 (mm): 1800
+안테나 회전 목표 위치 (도): 10
+EUT 회전 목표 위치 (도): 20
+턴테이블 목표 위치 (도): 30
+
+기본 속도를 사용하시겠습니까? (y/n): y
+
+측정 위치로 이동을 시작합니다...
+
+ANT_HEIGHT 이동 시작: 1800.0
+ANT_HEIGHT - read_raw_location 시작
+2025-01-07 16:39:22,998 - DEBUG - - 읽은 raw value: 16888033)
+ANT_HEIGHT - set_target_position 시작
+ANT_HEIGHT - read_position 호출
+ANT_HEIGHT - read_raw_location 시작
