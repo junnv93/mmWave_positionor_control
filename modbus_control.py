@@ -108,7 +108,7 @@ class SharedPortController:
     def __init__(self, port: str, slave_address: int = DEFAULT_SLAVE_ADDRESS):
         self.port = port
         self.slave_address = slave_address
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.instrument = self._setup_instrument()
 
     def _setup_instrument(self) -> Optional[minimalmodbus.Instrument]:
@@ -169,15 +169,11 @@ class PositionerController:
             return None
 
     def read_raw_location(self) -> Optional[int]:
-        print(f"{self.positioner_type.value} - read_raw_location 시작")
         def execute(instrument):
             reg_info = self.reg_map['LOCATION']
             try:
-                
                 # 실제 값 읽기
-                raw_value = instrument.read_long(reg_info['start'], 3, False, reg_info['length'])
-                logging.debug(f"- 읽은 raw value: {raw_value})")
-                
+                raw_value = instrument.read_long(reg_info['start'], 3, False, reg_info['length'])                
                 return raw_value
             except Exception as e:
                 logging.error(f"{self.positioner_type.value} 위치 읽기 실패: {type(e).__name__} - {e}")
@@ -267,38 +263,27 @@ class PositionerController:
         return target_pos
 
     def set_target_position(self, target: float) -> bool:
-        def execute(instrument):
-            print(f"{self.positioner_type.value} - set_target_position 시작")
-            
-            print(f"{self.positioner_type.value} - read_position 호출")
+        def execute(instrument):            
             current_pos = self.read_position()
             print(f"{self.positioner_type.value} - 현재 위치: {current_pos}")
             if current_pos is None:
-                print(f"{self.positioner_type.value} - 현재 위치 읽기 실패")
                 return False
             
-            print(f"{self.positioner_type.value} - determine_shortest_path 호출")        
             optimized_target = self.determine_shortest_path(current_pos, target)
-            print(f"{self.positioner_type.value} - 최적화된 목표 위치: {optimized_target}")
                 
             if not (self.position_limits['MIN'] <= optimized_target <= self.position_limits['MAX']):
                 logging.error(
                     f"{self.positioner_type.value} 위치 값 범위 초과: "
                     f"{optimized_target} (허용범위: {self.position_limits['MIN']} ~ {self.position_limits['MAX']})"
                 )
-                print(f"{self.positioner_type.value} - 목표 위치가 허용 범위를 벗어남")
                 return False
 
-            print(f"{self.positioner_type.value} - convert_to_counts 호출")
             counts = self.convert_to_counts(optimized_target)
-            print(f"{self.positioner_type.value} - 목표 위치를 counts로 변환: {counts}")
 
             reg_info = self.reg_map['TARGET']
-            print(f"{self.positioner_type.value} - write_long 호출 (register: {reg_info['start']}, value: {counts})")
             instrument.write_long(reg_info['start'], counts, False, 3)
             logging.debug(f"{self.positioner_type.value} target set to: {counts}")
 
-            print(f"{self.positioner_type.value} - set_target_position 완료")
             return True
 
         return self._execute_modbus_command(execute)
@@ -331,7 +316,9 @@ class PositionerController:
 
     def check_completion(self) -> bool:
         def execute(instrument):
-            return bool(instrument.read_bit(self.reg_map['COMPLETE_BIT'], 2))
+            value = instrument.read_bit(self.reg_map['COMPLETE_BIT'], 2)
+            print(f"COMPLETE_BIT read: {value}")
+            return bool(value)
         return self._execute_modbus_command(execute)
 
     def check_limits(self) -> bool:

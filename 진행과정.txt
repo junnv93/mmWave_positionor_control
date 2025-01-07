@@ -72,3 +72,12 @@ ANT_HEIGHT - read_raw_location 시작
 ANT_HEIGHT - set_target_position 시작
 ANT_HEIGHT - read_position 호출
 ANT_HEIGHT - read_raw_location 시작
+
+COMPLETE_BIT read: 0
+COMPLETE_BIT read: 0
+COMPLETE_BIT read: 0
+COMPLETE_BIT read: 0
+COMPLETE_BIT read: 0
+COMPLETE_BIT read: 0
+COMPLETE_BIT read: 0
+COMPLETE_BIT read: 0
