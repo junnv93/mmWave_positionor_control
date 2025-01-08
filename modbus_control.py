@@ -1,3 +1,4 @@
+#modbus_control.py
 import minimalmodbus
 import serial
 import time
@@ -79,7 +80,7 @@ class PositionerConstants:
         'ANT_HEIGHT': {
             'LOCATION': {'start': 0, 'length': 3},  # 1-2번 주소 (-1 보정)
             'TARGET': {'start': 2, 'length': 3},    # 3-4번 주소 (-1 보정)
-            'SPEED': {'start': 8, 'length': 3},     # 9-10번 주소 (-1 보정)
+            'SPEED': {'start': 8, 'length': 1},     # 9-10번 주소 (-1 보정)
             'START_BIT': 0,           # Modbus Address 1
             'ENABLE_BIT': 1,          # OutBitD3
             'COMPLETE_BIT': 2,        # InBitC3
@@ -92,7 +93,7 @@ class PositionerConstants:
         'ROLL': {  # ANT_ROLL, EUT_ROLL, TT_ROLL 공통
             'LOCATION': {'start': 4, 'length': 3},  # 5-6번 주소 (-1 보정)
             'TARGET': {'start': 6, 'length': 3},    # 7-8번 주소 (-1 보정)
-            'SPEED': {'start': 9, 'length': 3},     # 10번 주소 (-1 보정)
+            'SPEED': {'start': 9, 'length': 1},     # 10번 주소 (-1 보정)
             'START_BIT': 5,           # start_roll
             'ENABLE_BIT': 6,          # OutBitE3
             'COMPLETE_BIT': 7,        # InBitB3
@@ -157,6 +158,108 @@ class PositionerController:
         
         if self.speed_settings['DEFAULT'] is not None:
             self.set_speed(self.speed_settings['DEFAULT'])
+    
+    def is_movement_complete(self, target: float) -> bool:
+        """위치와 COMPLETE_BIT를 모두 확인하여 이동 완료 여부를 판단"""
+        current_pos = self.read_position()
+        if current_pos is None:
+            return False
+            
+        position_reached = abs(current_pos - target) < TOLERANCE
+        # complete_bit = self.check_completion()
+        
+        if position_reached:
+            logging.debug(f"{self.positioner_type.value} 목표 위치 도달: 현재={current_pos:.2f}, 목표={target:.2f}")
+        # if complete_bit:
+        #     logging.debug(f"{self.positioner_type.value} COMPLETE_BIT ON")
+            
+        # return position_reached or complete_bit  # 둘 중 하나라도 True면 이동 완료로 간주
+
+        return position_reached  # 위치만으로 판단
+
+    def check_position_continuously(self, target: float, start_time: float, max_wait_time: float) -> bool:
+        """현재 위치를 지속적으로 모니터링하며 이동 완료 여부 확인"""
+        current_pos = self.read_position()
+        if current_pos is None:
+            return False
+
+        # 현재 위치 로깅
+        logging.debug(f"{self.positioner_type.value} 현재 위치: {current_pos:.2f}, 목표: {target:.2f}")
+        
+        # 타임아웃 체크
+        if time.time() - start_time > max_wait_time:
+            logging.error(f"{self.positioner_type.value} 이동 타임아웃 (경과: {time.time() - start_time:.1f}초)")
+            return True
+            
+        # 리미트 스위치 체크
+        # if not self.check_limits():
+        #     logging.error(f"{self.positioner_type.value} 리미트 스위치 감지")
+        #     return True
+            
+        return False
+
+    def move_to_position(self, target: float, wait_for_completion: bool = True) -> bool:
+        """지정된 위치로 이동"""
+        try:
+            current_pos = self.read_position()
+            if current_pos is None:
+                logging.error(f"{self.positioner_type.value} 현재 위치 읽기 실패")
+                return False
+                
+            # 이미 목표 위치에 있는지 확인
+            if abs(current_pos - target) < TOLERANCE:
+                logging.info(f"{self.positioner_type.value}가 이미 목표 위치({target})에 있습니다.")
+                return True
+                
+            # 타겟 위치 설정
+            if not self.set_target_position(target):
+                logging.error(f"{self.positioner_type.value} 타겟 위치 설정 실패")
+                return False
+                
+            # 이동 시작
+            if not self.start_movement():
+                logging.error(f"{self.positioner_type.value} 이동 시작 실패")
+                return False
+                
+            if wait_for_completion:
+                max_wait_time = 60  # 최대 대기 시간 (초)
+                start_time = time.time()
+                last_pos = current_pos
+                no_movement_count = 0
+                
+                while not self.is_movement_complete(target):
+                    time.sleep(0.1)
+                    
+                    # 현재 위치 확인 및 모니터링
+                    if self.check_position_continuously(target, start_time, max_wait_time):
+                        self.stop_movement()
+                        return False
+                        
+                    # 움직임이 멈췄는지 확인
+                    current_pos = self.read_position()
+                    if current_pos is not None:
+                        if abs(current_pos - last_pos) < TOLERANCE:
+                            no_movement_count += 1
+                            if no_movement_count > 50:  # 5초 동안 움직임이 없으면
+                                logging.error(f"{self.positioner_type.value} 움직임이 멈춤")
+                                self.stop_movement()
+                                return False
+                        else:
+                            no_movement_count = 0
+                        last_pos = current_pos
+                
+                # 최종 위치 확인
+                final_pos = self.read_position()
+                if final_pos is not None:
+                    logging.info(f"{self.positioner_type.value} 이동 완료: {final_pos:.2f}")
+                    return abs(final_pos - target) < TOLERANCE
+                    
+            return True
+            
+        except Exception as e:
+            logging.error(f"{self.positioner_type.value} 이동 중 오류 발생: {str(e)}")
+            self.stop_movement()
+            return False
 
     def _execute_modbus_command(self, func: Callable, *args):
         """Modbus 명령 실행 래퍼 함수"""
@@ -239,10 +342,8 @@ class PositionerController:
             reg_info = self.reg_map['SPEED']
             try:
                 logging.debug(f"{self.positioner_type.value} read_speed 파라미터:")
-                logging.debug(f"- address (start): {reg_info['start']}")
-                logging.debug(f"- length: {reg_info['length']}")
-                
-                speed = instrument.read_long(reg_info['start'], 3, False, reg_info['length'])
+                logging.debug(f"- address (start): {reg_info['start']}")                
+                speed = self.instrument.read_register(reg_info['start'])
                 logging.debug(f"{self.positioner_type.value} 읽은 speed: {speed} (hex: {hex(speed)})")
                 return speed
             except Exception as e:
@@ -302,7 +403,9 @@ class PositionerController:
                 return False
 
             reg_info = self.reg_map['SPEED']
-            instrument.write_long(reg_info['start'], speed & 0xFFFF, False, 3)
+            instrument.write_register(reg_info['start'], speed)
+            time.sleep(0.2)  # 안정화를 위한 대기
+
             return True
         return self._execute_modbus_command(execute)
 
@@ -352,37 +455,6 @@ class PositionerController:
             return instrument.write_bit(self.reg_map['STOP_BIT'], 1, 5)
         return self._execute_modbus_command(execute)
 
-    def move_to_position(self, target: float, wait_for_completion: bool = True) -> bool:
-        try:
-            current_pos = self.read_position()
-            if current_pos is None:
-                return False
-                
-            if abs(current_pos - target) < TOLERANCE:
-                logging.info(f"{self.positioner_type.value}가 이미 목표 위치({target})에 있습니다.")
-                return True
-                
-            if not self.set_target_position(target):
-                print("타겟 위치 설정 실패")
-                return False
-                
-            if not self.start_movement():
-                print("이동 시작 실패")
-                return False
-                
-            if wait_for_completion:
-                while not self.check_completion():
-                    time.sleep(0.1)
-                    if not self.check_limits():
-                        self.stop_movement()
-                        return False
-                        
-            return True
-            
-        except Exception as e:
-            logging.error(f"이동 중 오류 발생: {e}")
-            return False
-        
 
 class MeasurementSystem:
     def __init__(self, ports: Dict[str, str]):
