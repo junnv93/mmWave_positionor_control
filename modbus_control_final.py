@@ -111,7 +111,7 @@ class SharedPortController:
         self.port = port
         self.slave_address = slave_address
         self.lock = threading.RLock()
-        self.instrument = self._setup_instrument()  # 여기서는 인자 없이 호출
+        self.instrument = self._setup_instrument()
 
     def _setup_instrument(self) -> Optional[minimalmodbus.Instrument]:  # self.port와 self.slave_address를 사용
         """시리얼 통신 설정"""
@@ -140,30 +140,15 @@ class SharedPortController:
     def close_connection(self):
         """안전한 연결 종료"""
         try:
-            # 1. 모든 동작 정지
-            self.stop_movement()
-            time.sleep(0.2)
-            
-            # 2. START 비트 초기화
-            def execute(instrument):
-                try:
-                    instrument.write_bit(self.reg_map['START_BIT'], 0, 5)
-                    time.sleep(0.1)
-                    return True
-                except:
-                    return False
-            self._execute_modbus_command(execute)
-            
-            # 3. 시리얼 포트 종료
-            if not self.shared_port and hasattr(self, 'instrument') and self.instrument is not None:
+            if hasattr(self, 'instrument') and self.instrument is not None:
                 try:
                     self.instrument.serial.reset_input_buffer()
                     self.instrument.serial.reset_output_buffer()
                     self.instrument.serial.close()
-                except:
-                    pass
+                except Exception as e:
+                    logging.warning(f"SharedPortController 연결 종료 중 오류: {e}")
         except Exception as e:
-            logging.error(f"연결 종료 중 오류 발생: {e}")
+            logging.error(f"SharedPortController 연결 종료 중 심각한 오류: {e}")
 
 class PositionerController:
     """포지셔너 제어 클래스"""
@@ -215,6 +200,23 @@ class PositionerController:
         # return position_reached or complete_bit  # 둘 중 하나라도 True면 이동 완료로 간주
 
         return position_reached  # 위치만으로 판단
+
+    def is_moving(self, current_pos: float, target: float) -> bool:
+        """움직임 여부를 확인"""
+        try:
+            last_pos = getattr(self, '_last_position', current_pos)
+            self._last_position = current_pos
+            
+            # 위치 변화가 있는지 확인
+            position_change = abs(current_pos - last_pos) > 0.01
+            # 목표에 도달했는지 확인
+            target_reached = abs(current_pos - target) < TOLERANCE
+            
+            return position_change and not target_reached
+            
+        except Exception as e:
+            logging.error(f"움직임 확인 중 오류: {e}")
+            return False
 
     def check_position_continuously(self, target: float, start_time: float, max_wait_time: float) -> bool:
         current_pos = self.read_position()
@@ -493,17 +495,12 @@ class PositionerController:
     def stop_movement(self) -> bool:
         def execute(instrument):
             try:
-                # STOP 비트 설정
-                instrument.write_bit(self.reg_map['STOP_BIT'], 1, 5)
-                time.sleep(0.2)
-                # START 비트 초기화
+                # STOP_BIT 사용하지 않고 START 비트만 초기화
                 instrument.write_bit(self.reg_map['START_BIT'], 0, 5)
-                time.sleep(0.1)
-                # STOP 비트 초기화
-                instrument.write_bit(self.reg_map['STOP_BIT'], 0, 5)
+                time.sleep(0.1)  # 짧은 대기 시간
                 return True
             except Exception as e:
-                logging.error(f"동작 정지 중 오류: {e}")
+                logging.error(f"{self.positioner_type.value} 동작 정지 중 오류: {e}")
                 return False
         return self._execute_modbus_command(execute)
 
@@ -526,6 +523,35 @@ class PositionerController:
                 return not (cw or ccw)
         return self._execute_modbus_command(execute)
 
+    # PositionerController 클래스 내에 다음 메소드를 추가
+    def close_connection(self):
+        """안전한 연결 종료"""
+        try:
+            # 1. 동작 중지
+            self.stop_movement()
+            time.sleep(0.2)  # 안정화 대기
+            
+            # 2. START 비트 초기화
+            def reset_start_bit(instrument):
+                try:
+                    instrument.write_bit(self.reg_map['START_BIT'], 0, 5)
+                    return True
+                except Exception as e:
+                    logging.warning(f"START 비트 초기화 실패: {e}")
+                    return False
+            self._execute_modbus_command(reset_start_bit)
+            
+            # 3. 통신 버퍼 정리 (공유 포트가 아닌 경우에만)
+            if not self.shared_port and self.instrument is not None:
+                try:
+                    self.instrument.serial.reset_input_buffer()
+                    self.instrument.serial.reset_output_buffer()
+                except Exception as e:
+                    logging.warning(f"버퍼 초기화 실패: {e}")
+                    
+        except Exception as e:
+            logging.error(f"{self.positioner_type.value} 연결 종료 중 오류: {e}")
+
     def move_up(self) -> bool:
         if self.positioner_type != PositionerType.ANTENNA_HEIGHT:
             return False
@@ -540,7 +566,53 @@ class PositionerController:
             return instrument.write_bit(self.reg_map['DOWN_BIT'], 1, 5)
         return self._execute_modbus_command(execute)
 
-
+    def calibrate_position(self, value: float) -> bool:
+        """현재 위치를 지정된 값으로 보정
+        
+        Args:
+            value (float): 설정할 위치 값 (mm 또는 degree)
+            
+        Returns:
+            bool: 보정 성공 여부
+        """
+        try:
+            # 값 범위 체크
+            if not (self.position_limits['MIN'] <= value <= self.position_limits['MAX']):
+                logging.error(
+                    f"{self.positioner_type.value} 캘리브레이션 값 범위 초과: "
+                    f"{value} (허용범위: {self.position_limits['MIN']} ~ {self.position_limits['MAX']})"
+                )
+                return False
+                
+            # value를 카운터 값으로 변환
+            counts = self.convert_to_counts(value)
+            
+            def execute(instrument):
+                # LOCATION 레지스터에 직접 쓰기
+                reg_info = self.reg_map['LOCATION']
+                instrument.write_long(reg_info['start'], counts, False,3)
+                time.sleep(0.2)  # 안정화 대기
+                
+                # 쓰기 성공 여부 확인
+                read_value = self.read_position()
+                if read_value is not None:
+                    success = abs(read_value - value) < TOLERANCE
+                    if success:
+                        logging.info(f"{self.positioner_type.value} 캘리브레이션 완료: {value}")
+                    else:
+                        logging.error(
+                            f"{self.positioner_type.value} 캘리브레이션 실패 - "
+                            f"설정값: {value}, 읽은값: {read_value}"
+                        )
+                    return success
+                return False
+                    
+            return self._execute_modbus_command(execute)
+            
+        except Exception as e:
+            logging.error(f"{self.positioner_type.value} 캘리브레이션 중 오류 발생: {e}")
+            return False
+        
 class MeasurementSystem:
     def __init__(self, ports: Dict[str, str]):
         # Antenna용 공유 포트 컨트롤러 생성
@@ -629,30 +701,54 @@ class MeasurementSystem:
         }
 
     def cleanup(self):
-        """향상된 리소스 정리"""
-        try:
-            # 1. 모든 동작 정지
-            self.emergency_stop_all()
-            time.sleep(0.5)  # 충분한 대기 시간
-            
-            # 2. 각 컨트롤러 종료
-            self.antenna_roll.close_connection()
-            self.antenna_height.close_connection()
-            self.eut_roll.close_connection()
-            self.turntable_roll.close_connection()
-            
-            # 3. 공유 포트 컨트롤러 종료
-            if hasattr(self, 'antenna_port_controller') and self.antenna_port_controller is not None:
-                if hasattr(self.antenna_port_controller, 'instrument') and self.antenna_port_controller.instrument is not None:
+            """시스템 리소스 정리"""
+            try:
+                # 1. 모든 동작 정지 (각각 독립적으로 시도)
+                for positioner in [self.antenna_roll, self.antenna_height, self.eut_roll, self.turntable_roll]:
                     try:
-                        self.antenna_port_controller.instrument.serial.reset_input_buffer()
-                        self.antenna_port_controller.instrument.serial.reset_output_buffer()
-                        self.antenna_port_controller.instrument.serial.close()
-                    except:
-                        pass
-                        
-        except Exception as e:
-            logging.error(f"Cleanup 중 오류 발생: {e}")
+                        positioner.stop_movement()
+                    except Exception as e:
+                        logging.warning(f"{positioner.positioner_type.value} 정지 중 오류: {e}")
+                
+                time.sleep(0.5)  # 충분한 대기 시간
+                
+                # 2. 시작 비트 초기화 시도 (각각 독립적으로)
+                for positioner in [self.antenna_roll, self.antenna_height, self.eut_roll, self.turntable_roll]:
+                    try:
+                        def reset_start_bit(instrument):
+                            instrument.write_bit(positioner.reg_map['START_BIT'], 0, 5)
+                            return True
+                        positioner._execute_modbus_command(reset_start_bit)
+                    except Exception as e:
+                        logging.warning(f"{positioner.positioner_type.value} START 비트 초기화 중 오류: {e}")
+                
+                # 3. 공유 포트 컨트롤러 종료
+                if hasattr(self, 'antenna_port_controller') and self.antenna_port_controller is not None:
+                    try:
+                        self.antenna_port_controller.close_connection()
+                    except Exception as e:
+                        logging.warning(f"안테나 포트 컨트롤러 종료 중 오류: {e}")
+                
+                # 4. 개별 포트 컨트롤러 종료
+                for positioner in [self.eut_roll, self.turntable_roll]:
+                    if not positioner.shared_port and positioner.instrument is not None:
+                        try:
+                            positioner.instrument.serial.reset_input_buffer()
+                            positioner.instrument.serial.reset_output_buffer()
+                            positioner.instrument.serial.close()
+                        except Exception as e:
+                            logging.warning(f"{positioner.positioner_type.value} 포트 종료 중 오류: {e}")
+                            
+            except Exception as e:
+                logging.error(f"Cleanup 중 오류 발생: {e}")
+                # 심각한 오류 발생 시 강제 종료 시도
+                try:
+                    if hasattr(self, 'antenna_port_controller'):
+                        if hasattr(self.antenna_port_controller, 'instrument'):
+                            if hasattr(self.antenna_port_controller.instrument, 'serial'):
+                                self.antenna_port_controller.instrument.serial.close()
+                except:
+                    pass
 
     def emergency_stop_all(self) -> None:
         self.antenna_roll.stop_movement()
@@ -746,11 +842,10 @@ if __name__ == "__main__":
                 # 캘리브레이션 후 위치 확인
                 print("\n캘리브레이션 후 위치:")
                 positions = system.get_all_positions()
-                print(f"안테나 높이: {positions['antenna_height']:.2f} mm")
-                print(f"안테나 회전: {positions['antenna_roll']:.2f}°")
-                print(f"EUT 회전: {positions['eut_roll']:.2f}°")
-                print(f"턴테이블: {positions['turntable_roll']:.2f}°")
-                
+                print(f"안테나 높이: {positions['antenna_height']['position']:.2f} mm (속도: {positions['antenna_height']['speed']})")
+                print(f"안테나 회전: {positions['antenna_roll']['position']:.2f}° (속도: {positions['antenna_roll']['speed']})")
+                print(f"EUT 회전: {positions['eut_roll']['position']:.2f}° (속도: 고정)")
+                print(f"턴테이블: {positions['turntable_roll']['position']:.2f}° (속도: {positions['turntable_roll']['speed']})")      
             except ValueError:
                 print("잘못된 입력입니다. 숫자를 입력해주세요.")
                 system.emergency_stop_all()

@@ -1,83 +1,162 @@
-ANT_ROLL - read_raw_location 시작
-2025-01-07 16:39:11,173 - DEBUG - - 읽은 raw value: 1071)
-2025-01-07 16:39:11,174 - DEBUG - ANT_ROLL read_speed 파라미터:
-2025-01-07 16:39:11,174 - DEBUG - - address (start): 9
-2025-01-07 16:39:11,175 - DEBUG - - length: 3
-2025-01-07 16:39:11,189 - DEBUG - ANT_ROLL 읽은 speed: 0 (hex: 0x0)
-ANT_HEIGHT - read_raw_location 시작
-2025-01-07 16:39:11,205 - DEBUG - - 읽은 raw value: 16888033)
-2025-01-07 16:39:11,206 - DEBUG - ANT_HEIGHT read_speed 파라미터:
-2025-01-07 16:39:11,206 - DEBUG - - address (start): 8
-2025-01-07 16:39:11,206 - DEBUG - - length: 3
-2025-01-07 16:39:11,222 - DEBUG - ANT_HEIGHT 읽은 speed: 30000 (hex: 0x7530)
-EUT_ROLL - read_raw_location 시작
-2025-01-07 16:39:11,246 - DEBUG - - 읽은 raw value: 7200)
-TT_ROLL - read_raw_location 시작
-2025-01-07 16:39:11,266 - DEBUG - - 읽은 raw value: 44760)
-2025-01-07 16:39:11,266 - DEBUG - TT_ROLL read_speed 파라미터:
-2025-01-07 16:39:11,266 - DEBUG - - address (start): 9
-2025-01-07 16:39:11,268 - DEBUG - - length: 3
-2025-01-07 16:39:11,283 - DEBUG - TT_ROLL 읽은 speed: 3000 (hex: 0xbb8)
+명령 처리 중 오류가 발생했습니다: Slave reported illegal data address
 
-현재 각 포지셔너의 위치와 속도:
-ANT_ROLL - read_raw_location 시작
-2025-01-07 16:39:11,301 - DEBUG - - 읽은 raw value: 1071)
-2025-01-07 16:39:11,302 - DEBUG - ANT_ROLL read_speed 파라미터:
-2025-01-07 16:39:11,302 - DEBUG - - address (start): 9
-2025-01-07 16:39:11,302 - DEBUG - - length: 3
-2025-01-07 16:39:11,317 - DEBUG - ANT_ROLL 읽은 speed: 0 (hex: 0x0)
-ANT_HEIGHT - read_raw_location 시작
-2025-01-07 16:39:11,334 - DEBUG - - 읽은 raw value: 16888033)
-2025-01-07 16:39:11,334 - DEBUG - ANT_HEIGHT read_speed 파라미터:
-2025-01-07 16:39:11,335 - DEBUG - - address (start): 8
-2025-01-07 16:39:11,335 - DEBUG - - length: 3
-2025-01-07 16:39:11,349 - DEBUG - ANT_HEIGHT 읽은 speed: 30000 (hex: 0x7530)
-EUT_ROLL - read_raw_location 시작
-2025-01-07 16:39:11,374 - DEBUG - - 읽은 raw value: 7200)
-TT_ROLL - read_raw_location 시작
-2025-01-07 16:39:11,395 - DEBUG - - 읽은 raw value: 44760)
-2025-01-07 16:39:11,395 - DEBUG - TT_ROLL read_speed 파라미터:
-2025-01-07 16:39:11,395 - DEBUG - - address (start): 9
-2025-01-07 16:39:11,396 - DEBUG - - length: 3
-2025-01-07 16:39:11,410 - DEBUG - TT_ROLL 읽은 speed: 3000 (hex: 0xbb8)
-안테나 높이: 1884.83 mm (속도: 30000)
-안테나 회전: 1.07° (속도: 0)
-EUT 회전: 90.00° (속도: 고정)
-턴테이블: 120.00° (속도: 3000)
+명령어를 입력하세요: read_bit(1, 2)     
 
-캘리브레이션을 진행하시겠습니까? (y/n): n
+[결과] read_bit(1, 2) -> 0
 
-초기화 완료. 시스템 사용 준비가 되었습니다.
+명령어를 입력하세요: read_bit(2, 2)     
 
-측정 위치로 이동하시겠습니까? (y/n): y
+[결과] read_bit(2, 2) -> 0
 
-각 포지셔너의 허용 범위:
-안테나 높이: 1520 ~ 1900 mm
-안테나 회전: 0 ~ 180°
-EUT 회전: -360 ~ 360°
-턴테이블: 0 ~ 360°
+명령어를 입력하세요: read_bit(5, 2) 
 
-안테나 높이 목표 위치 (mm): 1800
-안테나 회전 목표 위치 (도): 10
-EUT 회전 목표 위치 (도): 20
-턴테이블 목표 위치 (도): 30
+[결과] read_bit(5, 2) -> 0
 
-기본 속도를 사용하시겠습니까? (y/n): y
+명령어를 입력하세요: read_bit(6, 2)  
 
-측정 위치로 이동을 시작합니다...
+[결과] read_bit(6, 2) -> 0
 
-ANT_HEIGHT 이동 시작: 1800.0
-ANT_HEIGHT - read_raw_location 시작
-2025-01-07 16:39:22,998 - DEBUG - - 읽은 raw value: 16888033)
-ANT_HEIGHT - set_target_position 시작
-ANT_HEIGHT - read_position 호출
-ANT_HEIGHT - read_raw_location 시작
+명령어를 입력하세요: read_bit(7, 2) 
 
-COMPLETE_BIT read: 0
-COMPLETE_BIT read: 0
-COMPLETE_BIT read: 0
-COMPLETE_BIT read: 0
-COMPLETE_BIT read: 0
-COMPLETE_BIT read: 0
-COMPLETE_BIT read: 0
-COMPLETE_BIT read: 0
+[결과] read_bit(7, 2) -> 0
+
+명령어를 입력하세요: read_bit(1, 1) 
+
+[결과] read_bit(1, 1) -> 0
+
+명령어를 입력하세요: read_bit(2, 1) 
+
+[결과] read_bit(2, 1) -> 0
+
+명령어를 입력하세요: read_bit(3, 1) 
+
+[결과] read_bit(3, 1) -> 0
+
+명령어를 입력하세요: read_bit(5, 1) 
+
+[결과] read_bit(5, 1) -> 0
+
+명령어를 입력하세요: write_bit(1, 0, 5) 
+명령 처리 중 오류가 발생했습니다: Slave reported illegal data address
+
+명령어를 입력하세요: write_bit(0, 0, 5) 
+
+[결과] write_bit(0, 0, 5) -> None
+
+명령어를 입력하세요: write_bit(0, 1, 5) 
+
+[결과] write_bit(0, 1, 5) -> None
+
+명령어를 입력하세요: write_long(2,1344000,False,3) 
+
+[결과] write_long(2, 1344000, False, 3) -> None
+
+명령어를 입력하세요: write_bit(0, 1, 5)
+
+[결과] write_bit(0, 1, 5) -> None
+
+명령어를 입력하세요: read_bit(2, 2)     
+
+[결과] read_bit(2, 2) -> 0
+
+명령어를 입력하세요: read_bit(0, 2)     
+
+[결과] read_bit(0, 2) -> 0
+
+명령어를 입력하세요: read_bit(2, 2)     
+
+[결과] read_bit(2, 2) -> 0
+
+명령어를 입력하세요: write_long(2,15859200,False,3) 
+
+[결과] write_long(2, 15859200, False, 3) -> None
+
+명령어를 입력하세요: write_bit(0, 1, 5)
+
+[결과] write_bit(0, 1, 5) -> None
+
+명령어를 입력하세요: write_bit(14, 1, 5)
+
+[결과] write_bit(14, 1, 5) -> None
+
+명령어를 입력하세요: write_bit(0, 1, 5)  
+
+[결과] write_bit(0, 1, 5) -> None
+
+명령어를 입력하세요: write_bit(14, 1, 5) 
+
+[결과] write_bit(14, 1, 5) -> None
+
+명령어를 입력하세요: read_bit(2, 2)
+
+[결과] read_bit(2, 2) -> 0
+
+명령어를 입력하세요: read_bit(0, 2) 
+
+[결과] read_bit(0, 2) -> 0
+
+명령어를 입력하세요: read_bit(11, 2) 
+
+[결과] read_bit(11, 2) -> 0
+
+명령어를 입력하세요: read_bit(12, 2) 
+
+[결과] read_bit(12, 2) -> 0
+
+명령어를 입력하세요: read_long(5, 3, False, 3) 
+
+[결과] read_long(5, 3, False, 3) -> 1966080000
+
+명령어를 입력하세요: write_long(6, 0, 3, False)
+명령 처리 중 오류가 발생했습니다: The signed must be boolean. Given: 3
+
+명령어를 입력하세요: write_long(6, 0, False,3)  
+
+[결과] write_long(6, 0, False, 3) -> None
+
+명령어를 입력하세요: write_long(6,1,5)         
+명령 처리 중 오류가 발생했습니다: The signed must be boolean. Given: 5
+
+명령어를 입력하세요: write_bit(6, 1, 5)
+명령 처리 중 오류가 발생했습니다: Slave reported illegal data address
+
+명령어를 입력하세요: write_bit(6,1,5)   
+명령 처리 중 오류가 발생했습니다: Slave reported illegal data address
+
+명령어를 입력하세요: write_bit(5, 1, 5)
+
+[결과] write_bit(5, 1, 5) -> None
+
+명령어를 입력하세요: read_long(5, 3, False, 3)  
+
+[결과] read_long(5, 3, False, 3) -> 0
+
+명령어를 입력하세요: read_long(5, 3, False, 3)
+
+[결과] read_long(5, 3, False, 3) -> 0
+
+명령어를 입력하세요: read_long(5, 3, False, 3)
+
+[결과] read_long(5, 3, False, 3) -> 0
+
+명령어를 입력하세요: write_long(6,1966080000,False,3) 
+
+[결과] write_long(6, 1966080000, False, 3) -> None
+
+명령어를 입력하세요: write_bit(5, 1, 5)               
+
+[결과] write_bit(5, 1, 5) -> None
+
+명령어를 입력하세요: write_bit(15, 1, 5) 
+
+[결과] write_bit(15, 1, 5) -> None
+
+명령어를 입력하세요: write_long(6,10000,False,3)      
+
+[결과] write_long(6, 10000, False, 3) -> None
+
+명령어를 입력하세요: write_bit(5, 1, 5)  
+
+[결과] write_bit(5, 1, 5) -> None
+
+명령어를 입력하세요: write_bit(0, 1, 5)     
