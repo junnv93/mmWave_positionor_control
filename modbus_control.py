@@ -7,7 +7,6 @@ from enum import Enum
 import threading
 from typing import Dict, Optional, Union, Callable
 from contextlib import nullcontext
-from typing import Dict, Optional, Union, Callable, Any
 
 # Constants
 TOLERANCE = 0.1  # 위치 허용 오차
@@ -111,59 +110,21 @@ class SharedPortController:
         self.port = port
         self.slave_address = slave_address
         self.lock = threading.RLock()
-        self.instrument = self._setup_instrument()  # 여기서는 인자 없이 호출
+        self.instrument = self._setup_instrument()
 
-    def _setup_instrument(self) -> Optional[minimalmodbus.Instrument]:  # self.port와 self.slave_address를 사용
-        """시리얼 통신 설정"""
+    def _setup_instrument(self) -> Optional[minimalmodbus.Instrument]:
+        """Modbus 통신 설정"""
         try:
-            instrument = minimalmodbus.Instrument(self.port, self.slave_address)  # 클래스 변수 사용
+            instrument = minimalmodbus.Instrument(self.port, self.slave_address)
             instrument.serial.baudrate = 19200
             instrument.serial.bytesize = 8
             instrument.serial.parity = serial.PARITY_NONE
             instrument.serial.stopbits = 1
             instrument.serial.timeout = 2
-            
-            # 시리얼 포트 설정 추가
-            instrument.serial.rts = False  # RTS 비활성화
-            instrument.serial.dtr = False  # DTR 비활성화
-            instrument.serial.xonxoff = False  # Software flow control 비활성화
-            
-            # 통신 버퍼 클리어
-            instrument.serial.reset_input_buffer()
-            instrument.serial.reset_output_buffer()
-            
             return instrument
         except Exception as e:
             logging.error(f"포트 {self.port} 설정 오류: {e}")
             return None
-
-    def close_connection(self):
-        """안전한 연결 종료"""
-        try:
-            # 1. 모든 동작 정지
-            self.stop_movement()
-            time.sleep(0.2)
-            
-            # 2. START 비트 초기화
-            def execute(instrument):
-                try:
-                    instrument.write_bit(self.reg_map['START_BIT'], 0, 5)
-                    time.sleep(0.1)
-                    return True
-                except:
-                    return False
-            self._execute_modbus_command(execute)
-            
-            # 3. 시리얼 포트 종료
-            if not self.shared_port and hasattr(self, 'instrument') and self.instrument is not None:
-                try:
-                    self.instrument.serial.reset_input_buffer()
-                    self.instrument.serial.reset_output_buffer()
-                    self.instrument.serial.close()
-                except:
-                    pass
-        except Exception as e:
-            logging.error(f"연결 종료 중 오류 발생: {e}")
 
 class PositionerController:
     """포지셔너 제어 클래스"""
@@ -217,6 +178,7 @@ class PositionerController:
         return position_reached  # 위치만으로 판단
 
     def check_position_continuously(self, target: float, start_time: float, max_wait_time: float) -> bool:
+        """현재 위치를 지속적으로 모니터링하며 이동 완료 여부 확인"""
         current_pos = self.read_position()
         if current_pos is None:
             return False
@@ -224,21 +186,15 @@ class PositionerController:
         # 현재 위치 로깅
         logging.debug(f"{self.positioner_type.value} 현재 위치: {current_pos:.2f}, 목표: {target:.2f}")
         
-        # 움직임 멈춤 감지 시 복구 시도
-        if not self.is_moving(current_pos, target):
-            # START 비트 재설정 시도
-            def retry_start(instrument):
-                instrument.write_bit(self.reg_map['START_BIT'], 0, 5)
-                time.sleep(0.2)
-                instrument.write_bit(self.reg_map['START_BIT'], 1, 5)
-                return True
-                
-            self._execute_modbus_command(retry_start)
-            
         # 타임아웃 체크
         if time.time() - start_time > max_wait_time:
-            logging.error(f"{self.positioner_type.value} 이동 타임아웃")
+            logging.error(f"{self.positioner_type.value} 이동 타임아웃 (경과: {time.time() - start_time:.1f}초)")
             return True
+            
+        # 리미트 스위치 체크
+        # if not self.check_limits():
+        #     logging.error(f"{self.positioner_type.value} 리미트 스위치 감지")
+        #     return True
             
         return False
 
@@ -266,7 +222,7 @@ class PositionerController:
                 return False
                 
             if wait_for_completion:
-                max_wait_time = 120  # 최대 대기 시간 (초)
+                max_wait_time = 60  # 최대 대기 시간 (초)
                 start_time = time.time()
                 last_pos = current_pos
                 no_movement_count = 0
@@ -305,37 +261,15 @@ class PositionerController:
             self.stop_movement()
             return False
 
-    def _execute_modbus_command(self, func: Callable, max_retries: int = 3) -> Any:
+    def _execute_modbus_command(self, func: Callable, *args):
         """Modbus 명령 실행 래퍼 함수"""
-        last_error = None
-        for attempt in range(max_retries):
-            try:
-                with self.port_controller.lock if self.shared_port else nullcontext():
-                    instrument = self.port_controller.instrument if self.shared_port else self.instrument
-                    if instrument is None:
-                        raise Exception("Instrument not initialized")
-                        
-                    # 통신 설정 재확인
-                    instrument.serial.timeout = 1.0  # 짧은 타임아웃 설정
-                    instrument.serial.reset_input_buffer()
-                    instrument.serial.reset_output_buffer()
-                    
-                    result = func(instrument)
-                    if result is not None or isinstance(result, bool):
-                        return result
-                        
-            except Exception as e:
-                last_error = e
-                logging.warning(f"통신 시도 {attempt + 1}/{max_retries} 실패: {e}")
-                time.sleep(0.2 * (attempt + 1))  # 점진적 대기 시간 증가
-                continue
-                
-        if last_error is not None:
-            if "illegal data address" in str(last_error).lower():
-                logging.error(f"Modbus 주소 오류: {last_error}")
-            else:
-                logging.error(f"Modbus 통신 실패: {last_error}")
-        return None
+        try:
+            with self.port_controller.lock if self.shared_port else nullcontext():
+                instrument = self.port_controller.instrument if self.shared_port else self.instrument
+                return func(instrument, *args)
+        except Exception as e:
+            logging.error(f"Modbus 명령 실행 오류: {e}")
+            return None
 
     def read_raw_location(self) -> Optional[int]:
         def execute(instrument):
@@ -347,14 +281,6 @@ class PositionerController:
             except Exception as e:
                 logging.error(f"{self.positioner_type.value} 위치 읽기 실패: {type(e).__name__} - {e}")
                 return None
-        return self._execute_modbus_command(execute)
-
-    def write_raw_location(self, counts: int) -> bool:
-        def execute(instrument):
-            reg_info = self.reg_map['LOCATION']
-            # 수정: (address, value, functioncode, signed)
-            instrument.write_long(reg_info['start'], counts, 3, False)
-            return True
         return self._execute_modbus_command(execute)
 
     def convert_to_counts(self, value: float) -> int:
@@ -470,41 +396,17 @@ class PositionerController:
 
             reg_info = self.reg_map['SPEED']
             instrument.write_register(reg_info['start'], speed)
-            time.sleep(0.5)  # 안정화를 위한 대기
+            time.sleep(0.2)  # 안정화를 위한 대기
 
             return True
         return self._execute_modbus_command(execute)
 
     def start_movement(self) -> bool:
         def execute(instrument):
-            try:
-                # 먼저 START 비트를 0으로 초기화
-                instrument.write_bit(self.reg_map['START_BIT'], 0, 5)
-                time.sleep(0.2)
-                # 그 다음 1로 설정
-                instrument.write_bit(self.reg_map['START_BIT'], 1, 5)
-                logging.debug(f"{self.positioner_type.value} movement started")
-                return True
-            except Exception as e:
-                logging.error(f"동작 시작 중 오류: {e}")
-                return False
-        return self._execute_modbus_command(execute)
+            instrument.write_bit(self.reg_map['START_BIT'], 1, 5)
+            logging.debug(f"{self.positioner_type.value} movement started")
 
-    def stop_movement(self) -> bool:
-        def execute(instrument):
-            try:
-                # STOP 비트 설정
-                instrument.write_bit(self.reg_map['STOP_BIT'], 1, 5)
-                time.sleep(0.2)
-                # START 비트 초기화
-                instrument.write_bit(self.reg_map['START_BIT'], 0, 5)
-                time.sleep(0.1)
-                # STOP 비트 초기화
-                instrument.write_bit(self.reg_map['STOP_BIT'], 0, 5)
-                return True
-            except Exception as e:
-                logging.error(f"동작 정지 중 오류: {e}")
-                return False
+            return True
         return self._execute_modbus_command(execute)
 
     def check_completion(self) -> bool:
@@ -538,6 +440,11 @@ class PositionerController:
             return False
         def execute(instrument):
             return instrument.write_bit(self.reg_map['DOWN_BIT'], 1, 5)
+        return self._execute_modbus_command(execute)
+
+    def stop_movement(self) -> bool:
+        def execute(instrument):
+            return instrument.write_bit(self.reg_map['STOP_BIT'], 1, 5)
         return self._execute_modbus_command(execute)
 
 
@@ -580,27 +487,17 @@ class MeasurementSystem:
         try:
             # 순차적 이동 실행
             moves = [
+                (self.antenna_height, ant_height_mm),  # 높이 먼저 조정
                 (self.antenna_roll, ant_roll_deg),
-                (self.turntable_roll, tt_roll_deg),
                 (self.eut_roll, eut_roll_deg),
-                (self.antenna_height, ant_height_mm)  # 높이 먼저 조정
-
+                (self.turntable_roll, tt_roll_deg)
             ]
             
             for controller, target in moves:
                 print(f"\n{controller.positioner_type.value} 이동 시작: {target}")
-                # 이동 전 통신 상태 확인
-                current_pos = controller.read_position()
-                if current_pos is None:
-                    logging.error(f"{controller.positioner_type.value} 통신 오류")
-                    return False
-                    
                 if not controller.move_to_position(target, wait_for_completion):
                     logging.error(f"{controller.positioner_type.value} 이동 실패")
                     return False
-                    
-                # 이동 후 대기 시간 추가
-                time.sleep(0.5)
             
             return True
             
@@ -608,7 +505,7 @@ class MeasurementSystem:
             logging.error(f"측정 위치 이동 오류: {e}")
             return False
             
-    def get_all_positions(self) -> Dict[str, Dict[str, Optional[float]]]:
+    def get_all_positions(self) -> Dict[str, float]:
         return {
             'antenna_roll': {
                 'position': self.antenna_roll.read_position(),
@@ -627,32 +524,6 @@ class MeasurementSystem:
                 'speed': self.turntable_roll.read_speed()
             }
         }
-
-    def cleanup(self):
-        """향상된 리소스 정리"""
-        try:
-            # 1. 모든 동작 정지
-            self.emergency_stop_all()
-            time.sleep(0.5)  # 충분한 대기 시간
-            
-            # 2. 각 컨트롤러 종료
-            self.antenna_roll.close_connection()
-            self.antenna_height.close_connection()
-            self.eut_roll.close_connection()
-            self.turntable_roll.close_connection()
-            
-            # 3. 공유 포트 컨트롤러 종료
-            if hasattr(self, 'antenna_port_controller') and self.antenna_port_controller is not None:
-                if hasattr(self.antenna_port_controller, 'instrument') and self.antenna_port_controller.instrument is not None:
-                    try:
-                        self.antenna_port_controller.instrument.serial.reset_input_buffer()
-                        self.antenna_port_controller.instrument.serial.reset_output_buffer()
-                        self.antenna_port_controller.instrument.serial.close()
-                    except:
-                        pass
-                        
-        except Exception as e:
-            logging.error(f"Cleanup 중 오류 발생: {e}")
 
     def emergency_stop_all(self) -> None:
         self.antenna_roll.stop_movement()
@@ -798,10 +669,10 @@ if __name__ == "__main__":
                     print("측정 위치 이동 완료")
                     final_positions = system.get_all_positions()
                     print("\n최종 위치:")
-                    print(f"안테나 높이: {final_positions['antenna_height']['position']:.2f} mm")
-                    print(f"안테나 회전: {final_positions['antenna_roll']['position']:.2f}°")
-                    print(f"EUT 회전: {final_positions['eut_roll']['position']:.2f}°")
-                    print(f"턴테이블: {final_positions['turntable_roll']['position']:.2f}°")
+                    print(f"안테나 높이: {final_positions['antenna_height']:.2f} mm")
+                    print(f"안테나 회전: {final_positions['antenna_roll']:.2f}°")
+                    print(f"EUT 회전: {final_positions['eut_roll']:.2f}°")
+                    print(f"턴테이블: {final_positions['turntable_roll']:.2f}°")
                 else:
                     print("측정 위치 이동 실패")
                     
@@ -812,11 +683,9 @@ if __name__ == "__main__":
             
     except Exception as e:
         logging.error(f"실행 중 오류 발생: {e}")
-        if system:
-            system.emergency_stop_all()
+        system.emergency_stop_all()
+        exit(1)
     
     finally:
-        if system:
-            system.cleanup()
         print("\n프로그램을 종료합니다.")
-
+        system.emergency_stop_all()

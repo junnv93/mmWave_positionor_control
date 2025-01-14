@@ -23,10 +23,10 @@ def load_excel_file():
     try:
         file_path, _ = QFileDialog.getOpenFileName(None, "Select Excel file", "", "Excel files (*.xlsx)")
         if not file_path:
-            logging.warning('Excel file selection was cancelled.')
+            logger.warning('Excel file selection was cancelled.')
             return None
         if not is_excel_file(file_path):
-            logging.error('Selected file is not an Excel file.')
+            logger.error('Selected file is not an Excel file.')
             return None
         return file_path
     except Exception as e:
